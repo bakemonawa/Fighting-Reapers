@@ -48,6 +48,7 @@ namespace FightingReapers
 
     public class AddAttackReaperBehavior
     {
+        [HarmonyPostfix]
         public static void AddBehavior(Creature __instance)
         {
             bool isReaper = __instance.GetComponentInChildren<ReaperLeviathan>();
@@ -129,35 +130,6 @@ namespace FightingReapers
 
     }
 
-    [HarmonyPatch(typeof(ReaperLeviathan))]
-    [HarmonyPatch("Update")]
-
-    internal class StartFight
-    {
-        [HarmonyPostfix]
-        public static void CloseIn(ReaperLeviathan __instance)
-
-        {            
-            var fb = FightBehavior.main;
-            var ar = AttackReaper.main;
-            
-            float attackDist = Vector3.Distance(__instance.transform.forward, fb.targetReaper.transform.position);
-
-            if (fb.targetReaper != null)
-            {
-                ar.Perform(__instance, 120f);                                                                      
-                if (attackDist <= 50f)
-                {
-                    ar.StartPerform(__instance);
-                    Logger.Log(Logger.Level.Debug, $"Charging!");
-                }
-            }            
-
-        }
-
-
-    }
-
     [HarmonyPatch(typeof(MeleeAttack))]
     [HarmonyPatch("CanBite", new Type[] { typeof(GameObject) })]
 
@@ -168,9 +140,10 @@ namespace FightingReapers
         public static bool BiteEnemy(MeleeAttack __instance, GameObject target, ref bool __result)
 
         {
+            bool isReaper = __instance.GetComponentInParent<ReaperLeviathan>();
             ReaperLeviathan component2 = target.GetComponent<ReaperLeviathan>();
 
-            if (component2 != null)
+            if (isReaper && component2 != null)
             {
                 __result = true;
                 return false;

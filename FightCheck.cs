@@ -20,7 +20,7 @@ namespace FightingReapers
         {
             RaycastHit hit;
             var fb = FightBehavior.main;
-            var ar = AttackReaper.main;
+            var ar = __instance.GetComponent<AttackReaper>();
             
             fb.thisReaper = __instance;
             
@@ -29,6 +29,7 @@ namespace FightingReapers
             float dist = Vector3.Distance(__instance.transform.position, fb.targetReaper.transform.position);
             float nextFire = 0.0f;
             float fireRate = 4f;
+            
 
             if (hit.transform.gameObject !=null && CraftData.GetTechType(hit.transform.gameObject) == TechType.ReaperLeviathan)
             {
@@ -45,8 +46,15 @@ namespace FightingReapers
 
             {
                 fb.targetFound = true;
-                ar.SetCurrentTarget(fb.targetReaper, false);
-                
+                ar.SetCurrentTarget(fb.targetReaper, false); //Could set isDecoy to true to guarantee target lock?
+
+                ar.Perform(__instance, 120f);
+                if (dist <= 50f)
+                {
+                    ar.StartPerform(__instance);
+                    Logger.Log(Logger.Level.Debug, $"Charging!");
+                }
+
                 while (fb.targetFound && Time.time > nextFire)
                 {
                     nextFire = Time.time + fireRate;
