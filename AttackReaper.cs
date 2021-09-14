@@ -14,16 +14,20 @@ namespace FightingReapers
     {
 		public LastTarget lastTarget;
 		private float maxDistToLeash = 100f;
-		public float swimVelocity = 10f;
+		public float swimVelocity = 10f;		
 		private float swimInterval = 0.3f;
 		public CreatureTrait aggressiveToNoise;
 		private bool isActive;
-		private GameObject currentTarget;
+		internal GameObject currentTarget;
 		private float timeLastAttack;
 		private float timeNextSwim;
 		private bool currentTargetIsDecoy;
 		private Vector3 targetAttackPoint;
-		private FightBehavior fb = FightBehavior.main;
+		public float scratchTimer = 0f;
+		public bool startTimer = false;
+		
+
+
 		public static AttackReaper main;
 		
 		public override void Awake()
@@ -33,12 +37,30 @@ namespace FightingReapers
 
         }
 
+		public void DesignateTarget(Transform transform)
+
+        {
+			var fb = creature.GetComponent<FightBehavior>();
+
+			
+			this.currentTarget = transform.gameObject;
+            		
+
+			Logger.Log(Logger.Level.Debug, "Hostile detected");
+
+        }
+
 		public override void StartPerform(Creature creature)
 		{
+			var fb = creature.GetComponent<FightBehavior>();
+
 			SafeAnimator.SetBool(creature.GetAnimator(), "attacking", true);
-			this.UpdateAttackPoint();
+			base.swimBehaviour.LookAt(currentTarget.transform);
 			this.lastTarget.SetLockedTarget(this.currentTarget);
 			this.isActive = true;
+
+			Logger.Log(Logger.Level.Debug, "Acquiring!");
+										
 		}
 
 		public override void StopPerform(Creature creature)
@@ -55,63 +77,50 @@ namespace FightingReapers
 			this.aggressiveToNoise.Value = 0f;
 			this.creature.Aggression.Value = 0f;
 			this.timeLastAttack = Time.time;
-		}
+		}		
 
 		public override void Perform(Creature creature, float deltaTime)
 		{
-			if (Time.time > this.timeNextSwim && this.currentTarget != null)
-			{
-				this.timeNextSwim = Time.time + this.swimInterval;
-				Vector3 targetPosition = this.currentTargetIsDecoy ? this.currentTarget.transform.position : this.currentTarget.transform.TransformPoint(this.targetAttackPoint);
-				base.swimBehaviour.SwimTo(targetPosition, this.swimVelocity);
-			}
-			creature.Aggression.Value = this.aggressiveToNoise.Value;
-		}
+			var fb = creature.GetComponent<FightBehavior>();
 
+			
+				
+				Vector3 targetPosition = this.currentTargetIsDecoy ? this.currentTarget.transform.position : this.currentTarget.transform.TransformPoint(this.targetAttackPoint);
+				base.swimBehaviour.SwimTo(currentTarget.transform.position, this.swimVelocity * 2f);
+			
+			
+		}		
+
+		
 		public void OnCollisionEnter(Collision collision)
 		{
-			if (fb.targetReaper != null && fb.targetReaper == collision.gameObject)
-			{
-				if (this.isActive)
-				{
-					return;
-				}
-				if (this.currentTarget != null && this.currentTargetIsDecoy)
-				{
-					return;
-				}
-				if (Vector3.Dot(collision.contacts[0].normal, collision.rigidbody.velocity) < 2.5f)
-				{
-					return;
-				}
+			var fb = creature.GetComponent<FightBehavior>();
+			var rb = collision.gameObject.GetComponent<Rigidbody>();
+			var velocity = rb.velocity.magnitude;
+			var thisReaper = creature.GetComponent<ReaperLeviathan>();
+
+			if (velocity >= 80f)
+			{			
+				
 				this.currentTarget = collision.gameObject;
-				this.aggressiveToNoise.Value = 1f;
+				this.aggressiveToNoise.Value = 15f;
+
+				base.swimBehaviour.SwimTo(thisReaper.gameObject.transform.forward + new Vector3(0, 0, 50), this.swimVelocity * 4f);
 			}
 		}
 
-		private void UpdateAttackPoint()
+		public void UpdateAttackPoint()
 		{
 			this.targetAttackPoint = Vector3.zero;
 			if (!this.currentTargetIsDecoy && this.currentTarget != null)
 			{
 				Vector3 vector = this.currentTarget.transform.InverseTransformPoint(base.transform.position);
-				this.targetAttackPoint.z = Mathf.Clamp(vector.z, -26f, 26f);
+				this.targetAttackPoint.z = Mathf.Clamp(vector.z, -2.5f, 2.5f);
+				this.targetAttackPoint.y = Mathf.Clamp(vector.y, -2.5f, 2.5f);
+				base.swimBehaviour.LookAt(this.currentTarget.transform);
 			}
 		}
-
-		public void SetCurrentTarget(GameObject target, bool isDecoy)
-		{
-			if (this.currentTarget != target)
-			{
-				this.currentTarget = target;
-				this.currentTargetIsDecoy = isDecoy;
-				if (this.isActive)
-				{
-					this.UpdateAttackPoint();
-					this.lastTarget.SetLockedTarget(this.currentTarget);
-				}
-			}
-		}
+				
 
 	}
 }

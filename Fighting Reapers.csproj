@@ -84,6 +84,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AttackReaper.cs" />
+    <Compile Include="Basic Moves.cs" />
     <Compile Include="FightBehavior.cs" />
     <Compile Include="FightCheck.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

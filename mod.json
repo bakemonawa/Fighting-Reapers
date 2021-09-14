@@ -2,7 +2,7 @@
   "Id": "FightingReapers",
   "DisplayName": "Fighting Reapers",
   "Author": "FalseLight",
-  "Version": "0.1.0",
+  "Version": "0.5.0",
   "Enable": true,
   "AssemblyName": "FightingReapers.dll",
   "VersionDependencies": 
