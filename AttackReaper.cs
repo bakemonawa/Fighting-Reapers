@@ -16,11 +16,10 @@ namespace FightingReapers
 		private float maxDistToLeash = 100f;
 		public float swimVelocity = 10f;		
 		private float swimInterval = 0.3f;
+		public float timeLastAttack;
 		public CreatureTrait aggressiveToNoise;
 		private bool isActive;
-		internal GameObject currentTarget;
-		private float timeLastAttack;
-		private float timeNextSwim;
+		internal GameObject currentTarget;		
 		private bool currentTargetIsDecoy;
 		private Vector3 targetAttackPoint;
 		public float scratchTimer = 0f;
@@ -41,9 +40,10 @@ namespace FightingReapers
 
         {
 			var fb = creature.GetComponent<FightBehavior>();
-
+			var swim = creature.GetComponent<SwimBehaviour>();
 			
 			this.currentTarget = transform.gameObject;
+			
             		
 
 			Logger.Log(Logger.Level.Debug, "Hostile detected");
@@ -55,9 +55,9 @@ namespace FightingReapers
 			var fb = creature.GetComponent<FightBehavior>();
 
 			SafeAnimator.SetBool(creature.GetAnimator(), "attacking", true);
-			base.swimBehaviour.LookAt(currentTarget.transform);
-			this.lastTarget.SetLockedTarget(this.currentTarget);
-			this.isActive = true;
+			
+			//this.lastTarget.SetLockedTarget(this.currentTarget);
+			//this.isActive = true;
 
 			Logger.Log(Logger.Level.Debug, "Acquiring!");
 										
@@ -66,10 +66,11 @@ namespace FightingReapers
 		public override void StopPerform(Creature creature)
 		{
 			SafeAnimator.SetBool(creature.GetAnimator(), "attacking", false);
-			this.lastTarget.UnlockTarget();
+			/*this.lastTarget.UnlockTarget();
 			this.lastTarget.target = null;
 			this.isActive = false;
 			this.StopAttack();
+			*/
 		}
 
 		protected void StopAttack()
@@ -79,19 +80,18 @@ namespace FightingReapers
 			this.timeLastAttack = Time.time;
 		}		
 
-		public override void Perform(Creature creature, float deltaTime)
+		public void Approach()
+		{			
+			Vector3 targetPosition = this.currentTargetIsDecoy ? this.currentTarget.transform.position : this.currentTarget.transform.TransformPoint(this.targetAttackPoint);
+			base.swimBehaviour.SwimTo(targetAttackPoint, this.swimVelocity * 2f);		
+		}
+
+		public void Charge()
 		{
-			var fb = creature.GetComponent<FightBehavior>();
+			this.swimVelocity *= 4f;
+		}
 
-			
-				
-				Vector3 targetPosition = this.currentTargetIsDecoy ? this.currentTarget.transform.position : this.currentTarget.transform.TransformPoint(this.targetAttackPoint);
-				base.swimBehaviour.SwimTo(currentTarget.transform.position, this.swimVelocity * 2f);
-			
-			
-		}		
 
-		
 		public void OnCollisionEnter(Collision collision)
 		{
 			var fb = creature.GetComponent<FightBehavior>();
@@ -111,14 +111,26 @@ namespace FightingReapers
 
 		public void UpdateAttackPoint()
 		{
-			this.targetAttackPoint = Vector3.zero;
-			if (!this.currentTargetIsDecoy && this.currentTarget != null)
+			var fb = this.GetComponentInParent<FightBehavior>();
+			var rm = this.GetComponentInParent<ReaperMeleeAttack>();
+			bool isTarget = fb.eyeHit.collider.GetComponentInParent<ReaperLeviathan>();
+			if (isTarget)
 			{
-				Vector3 vector = this.currentTarget.transform.InverseTransformPoint(base.transform.position);
-				this.targetAttackPoint.z = Mathf.Clamp(vector.z, -2.5f, 2.5f);
-				this.targetAttackPoint.y = Mathf.Clamp(vector.y, -2.5f, 2.5f);
-				base.swimBehaviour.LookAt(this.currentTarget.transform);
+				this.targetAttackPoint = fb.eyeHit.collider.ClosestPointOnBounds(rm.mouth.transform.position);
+				Transform attackTransform = fb.eyeHit.transform;
+				var thisReaper = GetComponentInParent<ReaperLeviathan>();
+
+				if (!this.currentTargetIsDecoy && this.currentTarget != null)
+				{
+					Vector3 vector = this.currentTarget.transform.InverseTransformPoint(thisReaper.transform.position);
+					this.targetAttackPoint.z = Mathf.Clamp(vector.z, -2.5f, 2.5f);
+					this.targetAttackPoint.y = Mathf.Clamp(vector.y, -2.5f, 2.5f);
+					base.swimBehaviour.LookAt(attackTransform);
+				}
+
 			}
+
+			Logger.Log(Logger.Level.Debug, "UPDATING ATTACK POINT!");
 		}
 				
 

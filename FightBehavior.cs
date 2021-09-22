@@ -9,23 +9,33 @@ namespace FightingReapers
 {
 	public class FightBehavior : MonoBehaviour
 	{
-
-		public bool targetFound = false;
+        
 		public static FightBehavior main;
 
 		public Creature holdingEnemy;
 		public EnemyType holdingEnemyType;
 		public Transform grabPoint;
 		public float timeEnemyGrabbed;
-		public Vector3 enemyInitialPosition;
-
-		public GameObject biteObject;
-		public GameObject targetReaper;
+		public Vector3 enemyInitialPosition;		
         public ReaperLeviathan thisReaper;
-        public bool isAttacking;
+        public RaycastHit bitePoint;
+        public RaycastHit clawPoint;
+        public RaycastHit eyeHit;
+        public Collider biteObject;
+        public Collider clawObject;
+        public GameObject targetReaper;
         public float targetDist;
-        public bool tookCrit;
-        public RaycastHit bitepoint;
+        public float biteDist;
+        public bool targetFound;
+        public float nextNotif = 0.0f;
+        public float notifRate = 4f;
+        public float moveChance = UnityEngine.Random.Range(0.0f, 1.01f);
+        public float attackChance = UnityEngine.Random.Range(0.0f, 1.01f);
+        public float critChance = UnityEngine.Random.Range(0f, 1.0001f);
+        public float nextMove = 0.0f;
+        public float nextAttack = 0.0f;
+        public float randomCooldown = UnityEngine.Random.Range(3f, 6f);
+        public float attackCD = UnityEngine.Random.Range(1f, 4f);
 
 
         private void Awake()
@@ -55,14 +65,9 @@ namespace FightingReapers
         [HarmonyPostfix]
         public static void AddBehavior(Creature __instance)
         {
-            bool isReaper = __instance.GetComponentInChildren<ReaperLeviathan>();
+            bool isReaper = __instance.GetComponentInChildren<ReaperLeviathan>();           
+            var rm =__instance.GetComponentInChildren<ReaperMeleeAttack>();           
             
-            var reaper = __instance.GetComponentInChildren<MeleeAttack>();
-            var rm =__instance.GetComponentInChildren<ReaperMeleeAttack>();
-            var aggro = __instance.GetComponentInChildren<AggressiveWhenSeeTarget>();
-            var aggro2 = __instance.GetComponentInParent<AggressiveWhenSeeTarget>();
-            
-
             if (isReaper)
             {
                 __instance.gameObject.AddComponent<FightBehavior>();                
@@ -88,8 +93,7 @@ namespace FightingReapers
                 UnityEngine.Object.Instantiate(liveMixin.damageEffect, __instance.transform.position + new Vector3(0.5f, 0.5f, 0), Quaternion.identity);
                 UnityEngine.Object.Instantiate(liveMixin.damageEffect, __instance.transform.position + new Vector3(-0.5f, 0.5f, 0), Quaternion.identity);
                 UnityEngine.Object.Instantiate(liveMixin.damageEffect, __instance.transform.position + new Vector3(0.5f, -0.5f, 0), Quaternion.identity);
-                ErrorMessage.AddMessage($"REAPER SPAWNED");
-                Logger.Log(Logger.Level.Info, "REAPER SPAWNED");
+                
             }
         }
     }
@@ -112,6 +116,29 @@ namespace FightingReapers
                 
                 ErrorMessage.AddMessage($"REAPER DESTROYED");
                 Logger.Log(Logger.Level.Info, "REAPER DESTROYED");
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Creature), nameof(Creature.OnKill))]
+    [HarmonyPatch("OnDestroy")]
+
+    public class AnimatorKiller
+    {
+        [HarmonyPostfix]
+        public static void StopMoving(Creature __instance)
+        {
+            bool isReaper = __instance.GetComponentInChildren<ReaperLeviathan>();
+
+            if (isReaper)
+            {
+
+                SafeAnimator.SetBool(__instance.GetAnimator(), "attacking", false);
+                this.animator.SetBool(MeleeAttack.biteAnimID, false);
+
+
+                ErrorMessage.AddMessage($"ANIMATOR DEACTIVATED");
+                Logger.Log(Logger.Level.Info, "ANIMATOR DEACTIVATED");
             }
         }
     }
@@ -143,7 +170,23 @@ namespace FightingReapers
 
     {
         private static float timeBleedAgain;
-        private static float bleedInterval = 0.7f;       
+        private static float bleedInterval = 0.7f;
+        private static float timeSnapAgain;
+        private static float snapInterval = UnityEngine.Random.Range(0.5f, 2.3f);
+        
+        public static void Snap(Creature creature)
+        {
+            var rb = creature.GetComponentInParent<Rigidbody>();
+            var rm = creature.GetComponentInParent<ReaperMeleeAttack>();
+
+            if (Time.time > timeSnapAgain)
+            {
+                rb.AddForce(rm.mouth.transform.forward * 10f, ForceMode.VelocityChange);
+
+                timeSnapAgain = Time.time + snapInterval;
+            }
+            
+        }
 
         [HarmonyPostfix]
         public static void ReactToDamage(ReaperLeviathan __instance, DamageInfo damageInfo)
@@ -159,8 +202,7 @@ namespace FightingReapers
             var melee = __instance.GetComponentInParent<MeleeAttack>();
             var aggro2 = __instance.GetComponentInParent<AggressiveWhenSeeTarget>();
             var rm = __instance.GetComponentInChildren<ReaperMeleeAttack>();
-
-            LiveMixin liveMixin = __instance.GetComponentInParent<LiveMixin>();
+            var liveMixin = __instance.GetComponentInParent<LiveMixin>();
 
             if (damageInfo.damage >= 80f)
             {
@@ -170,18 +212,24 @@ namespace FightingReapers
                 __instance.Friendliness.Add(-aggro.friendlinessDecrement);
                 __instance.Tired.Add(-aggro.tirednessDecrement);
                 __instance.Happy.Add(-aggro.happinessDecrement);
-                global::Utils.PlayEnvSound(rm.playerAttackSound, __instance.transform.forward, 40f);
-                swim.LookAt(damageInfo.dealer.transform);                
+                global::Utils.PlayEnvSound(rm.playerAttackSound, __instance.transform.forward, 40f);                
+                swim.LookAt(damageInfo.dealer.transform);
+                Logger.Log(Logger.Level.Debug, "NOTICEABLE DAMAGE!");
+                ErrorMessage.AddMessage("NOTICEABLE DAMAGE!");
             }
 
+            
             if (damageInfo.damage >= 140f)
             {
                 //Reflexively snap at damage dealer 
 
-                reaperBody.AddForce(damageInfo.dealer.transform.position * 160f, ForceMode.VelocityChange);
                 ar.DesignateTarget(damageInfo.dealer.transform);
+                Snap(__instance);
 
-            }            
+                Logger.Log(Logger.Level.Debug, "REFLEXIVE SNAP!");
+                ErrorMessage.AddMessage("REFLEXIVE SNAP!");
+            }
+            
 
             if (damageInfo.damage >= 1500f)
             {
@@ -189,7 +237,7 @@ namespace FightingReapers
 
                 var startTime = DateTime.UtcNow;
 
-                while (DateTime.UtcNow - startTime < TimeSpan.FromMinutes(1))
+                while (DateTime.UtcNow - startTime < TimeSpan.FromMinutes(0.5))
                 {
                     if (Time.time >= timeBleedAgain)
                     {
@@ -207,7 +255,8 @@ namespace FightingReapers
 
                 }
                 
-                Logger.Log(Logger.Level.Debug, "Critical hit!");
+                Logger.Log(Logger.Level.Debug, "CRITICAL HIT!");
+                ErrorMessage.AddMessage("CRITICAL HIT!");
             }
 
         }
