@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -43,7 +44,7 @@ namespace FightingReapers
 			var swim = creature.GetComponent<SwimBehaviour>();
 			
 			this.currentTarget = transform.gameObject;
-			
+			swim.LookAt(transform);
             		
 
 			Logger.Log(Logger.Level.Debug, "Hostile detected");
@@ -86,9 +87,28 @@ namespace FightingReapers
 			base.swimBehaviour.SwimTo(targetAttackPoint, this.swimVelocity * 2f);		
 		}
 
-		public void Charge()
-		{
-			this.swimVelocity *= 4f;
+		public void Charge(Creature creature)
+		{			
+			
+			IEnumerator AddSpeed()
+            {
+				creature.Tired.Add(0.1f);
+				if (creature.Tired.Value < 0.20)
+                {
+					this.swimVelocity = 30f;
+				}
+
+				else if (creature.Tired.Value >= 0.20)
+                {
+					this.swimVelocity = 20;
+                }
+				
+				yield return new WaitForSeconds(3);
+				this.swimVelocity = 10f;
+			}
+
+			StartCoroutine(AddSpeed());
+
 		}
 
 
@@ -113,11 +133,10 @@ namespace FightingReapers
 		{
 			var fb = this.GetComponentInParent<FightBehavior>();
 			var rm = this.GetComponentInParent<ReaperMeleeAttack>();
-			bool isTarget = fb.eyeHit.collider.GetComponentInParent<ReaperLeviathan>();
-			if (isTarget)
-			{
-				this.targetAttackPoint = fb.eyeHit.collider.ClosestPointOnBounds(rm.mouth.transform.position);
-				Transform attackTransform = fb.eyeHit.transform;
+			var targetCollider = fb.targetReaper.GetComponentInParent<Collider>();
+			
+				this.targetAttackPoint = targetCollider.ClosestPointOnBounds(rm.mouth.transform.position);
+				//Transform attackTransform = fb.eyeHit.transform;
 				var thisReaper = GetComponentInParent<ReaperLeviathan>();
 
 				if (!this.currentTargetIsDecoy && this.currentTarget != null)
@@ -125,10 +144,10 @@ namespace FightingReapers
 					Vector3 vector = this.currentTarget.transform.InverseTransformPoint(thisReaper.transform.position);
 					this.targetAttackPoint.z = Mathf.Clamp(vector.z, -2.5f, 2.5f);
 					this.targetAttackPoint.y = Mathf.Clamp(vector.y, -2.5f, 2.5f);
-					base.swimBehaviour.LookAt(attackTransform);
+					//base.swimBehaviour.LookAt(attackTransform);
 				}
 
-			}
+			
 
 			Logger.Log(Logger.Level.Debug, "UPDATING ATTACK POINT!");
 		}

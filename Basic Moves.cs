@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,12 +18,15 @@ namespace FightingReapers
         public static BasicFightingMoves main;
         internal Collider collider2;
         public Vector3 reaperMouth;
-        public new float biteDamage = 160f;        
+        public new float biteDamage = 100f;        
         private BehaviourType bt;        
         public LiveMixin enemyLiveMixin;
         public float timeToUnfreeze = 0f;
-        public float freezeCD = 3f;
+        public float freezeCD = 2f;
         public Animation anim;
+        public GameObject prefab;
+        public GameObject prefab2;
+        
 
 
 
@@ -47,66 +51,70 @@ namespace FightingReapers
         }
 
         */
-
-
+        
+        
 
         public void Bite()
         {
             
             var fb = GetComponentInParent<FightBehavior>();
             var thisReaper = GetComponentInParent<ReaperLeviathan>();
-            var melee = GetComponentInParent<MeleeAttack>();
-            
+            var rm = GetComponentInParent<ReaperMeleeAttack>();
+            Collider[] selfColliders = this.GetComponentsInParent<Collider>();
+            Collider[] validBiteables = fb.biteObjects.Except(selfColliders).ToArray();
 
             Logger.Log(Logger.Level.Info, "BITE PASSED CHECK 1");
 
-            /*
+            
 
             if (fb.critChance <= 0.40f)
             {
-                this.biteDamage = 3000f;
+                this.biteDamage = 300f;
             }
 
             else if (fb.critChance > 0.40f)
 
             {
-                this.biteDamage = 160f;
+                this.biteDamage = 100f;
             }
 
             Logger.Log(Logger.Level.Info, "BITE PASSED CHECK 2");
 
 
-            if (this.biteDamage == 3000)
+            if (this.biteDamage == 800)
             {
                 Logger.Log(Logger.Level.Info, "CRIT ROLL SUCCEEDED!");
             }
 
-            */
+            
 
-            if (fb.biteObject != null)
+            foreach (var validBiteable in validBiteables)
             {
-                Vector3 position = fb.biteObject.ClosestPointOnBounds(fb.bitePoint.transform.position);
-                Vector3 bleedPoint = fb.biteObject.transform.InverseTransformPoint(position);
-                LiveMixin enemyLiveMixin = fb.biteObject.GetComponentInParent<LiveMixin>();
+                
+                Vector3 position = fb.mouth.transform.position;
+                Vector3 bleedPoint = validBiteable.transform.InverseTransformPoint(position);
+                LiveMixin enemyLiveMixin = validBiteable.GetComponentInParent<LiveMixin>();
+
                 Logger.Log(Logger.Level.Info, "BITE PASSED CHECK 3");
 
                 if (enemyLiveMixin)
                 {
                     enemyLiveMixin.TakeDamage(this.biteDamage, position, DamageType.Normal, thisReaper.gameObject);
-                    UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint, enemyLiveMixin.damageEffect.transform.rotation);
-                    UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint + new Vector3(0.5f, 0.5f, 0), Quaternion.identity);
-                    UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint + new Vector3(-0.5f, 0.5f, 0), Quaternion.identity);
-                    UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint + new Vector3(0.5f, -0.5f, 0), Quaternion.identity);
-                    
+
+                    fb.BloodGen(validBiteable);
+                    GameObject blood = Instantiate(fb.CachedBloodPrefab, bleedPoint, Quaternion.identity);
+                    blood.SetActive(true);
+                    Destroy(blood, 4f);
+
                 }
 
-                VFXSurface component = fb.biteObject.GetComponent<VFXSurface>();
+                VFXSurface component = validBiteable.GetComponent<VFXSurface>();
                 VFXSurfaceTypeManager.main.Play(component, VFXEventTypes.impact, position, Quaternion.identity, thisReaper.transform);
 
                 Logger.Log(Logger.Level.Info, "BITE PASSED CHECK 4");
             }
             
-            this.animator.SetBool(MeleeAttack.biteAnimID, true);
+            rm.animator.SetBool(MeleeAttack.biteAnimID, true);
             
             ErrorMessage.AddMessage($"BITE ATTACK!");
         }
@@ -116,34 +124,48 @@ namespace FightingReapers
             var fb = this.GetComponentInParent<FightBehavior>();
             var rm = this.GetComponentInParent<ReaperMeleeAttack>();
             var thisReaper = this.GetComponentInParent<ReaperLeviathan>();
-            
+            Collider[] selfColliders = this.GetComponentsInParent<Collider>();
+            Collider[] validClawables = fb.clawObjects.Except(selfColliders).ToArray();
+
             SafeAnimator.SetBool(thisReaper.GetAnimator(), "attacking", true);
             
             
             Logger.Log(Logger.Level.Info, "CLAW PASSED CHECK 1");
 
-            if (fb.clawObject != null)
+            foreach (KeyValuePair<GameObject, Collider> pair in fb.clawObjects)
 
             {
-                
-                LiveMixin enemyLiveMixin = fb.clawObject.GetComponentInParent<LiveMixin>();
-                BreakableResource breakable = fb.clawObject.GetComponentInParent<BreakableResource>();
+                GameObject mandible = pair.Key;
+                Collider clawed = pair.Value;
+
+                LiveMixin enemyLiveMixin = clawed.GetComponentInParent<LiveMixin>();
+                BreakableResource breakable = clawed.GetComponentInParent<BreakableResource>();
 
                 Logger.Log(Logger.Level.Info, "CLAW PASSED CHECK 1.1");
                               
-                Vector3 position = fb.clawObject.ClosestPointOnBounds(fb.clawPoint.transform.position);
-                Vector3 bleedPoint = fb.clawObject.transform.InverseTransformPoint(position);
+                Vector3 position = clawed.ClosestPointOnBounds(mandible.transform.position);
+                Vector3 bleedPoint = clawed.transform.InverseTransformPoint(position);
+
+                Logger.Log(Logger.Level.Info, "CLAW PASSED CHECK 1.2");                
+
                 Logger.Log(Logger.Level.Info, "CLAW PASSED CHECK 2");
 
                     if (enemyLiveMixin)
                     {
-                        enemyLiveMixin.TakeDamage(160f, position, DamageType.Normal, thisReaper.gameObject);
+                        enemyLiveMixin.TakeDamage(80f, position, DamageType.Normal, thisReaper.gameObject);
+                        
 
-                        UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint, Quaternion.identity);                                                
-                        UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint + new Vector3(0.5f, 0.5f, 0), Quaternion.identity);
-                        UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint + new Vector3(-0.5f, 0.5f, 0), Quaternion.identity);
-                        UnityEngine.Object.Instantiate(enemyLiveMixin.damageEffect, bleedPoint + new Vector3(0.5f, -0.5f, 0), Quaternion.identity);
+                        fb.BloodGen(clawed);
+
+                        GameObject blood1 = Instantiate(fb.CachedBloodPrefab, bleedPoint, Quaternion.identity);
+                        
+                        blood1.SetActive(true);
+                        
+                        Destroy(blood1, 4f);
+                        
+
                         Logger.Log(Logger.Level.Info, "CLAW PASSED CHECK 3");
+
                     }
 
                     if (breakable)
@@ -153,23 +175,33 @@ namespace FightingReapers
                         breakable.HitResource();
                     }
 
-                    VFXSurface component = fb.clawObject.GetComponent<VFXSurface>();
-                    VFXSurfaceTypeManager.main.Play(component, VFXEventTypes.impact, position, Quaternion.identity, thisReaper.transform);
+                    VFXSurface component1 = clawed.GetComponentInParent<VFXSurface>();
+                    
+                    VFXSurfaceTypeManager.main.Play(component1, VFXEventTypes.impact, position, Quaternion.identity, thisReaper.transform);
+                    
+
                     Logger.Log(Logger.Level.Info, "CLAW PASSED CHECK 4");
                 
             }
 
             ErrorMessage.AddMessage($"CLAW ATTACK!");
             
-            global::Utils.PlayEnvSound(rm.playerAttackSound, thisReaper.transform.forward, 20f);
+            global::Utils.PlayEnvSound(rm.playerAttackSound, thisReaper.transform.forward, 35f);
 
         }        
 
         internal void FreezeRotation()
         {
-            var thisReaperBody = this.GetComponentInParent<Rigidbody>();
-            thisReaperBody.freezeRotation = true;
+            IEnumerator FreezeForSeconds()
+            {
+                var thisReaperBody = this.GetComponentInParent<Rigidbody>();
+                thisReaperBody.constraints = RigidbodyConstraints.FreezeRotationX;
+                yield return new WaitForSeconds(3);
+                thisReaperBody.constraints = RigidbodyConstraints.None;
 
+            }
+
+            StartCoroutine(FreezeForSeconds());            
         }
 
         public void Twist()
@@ -187,36 +219,37 @@ namespace FightingReapers
                 //Roll right
                 case 1: 
                     thisReaperBody.AddTorque(thisReaperBody.transform.forward * 2.5f, ForceMode.VelocityChange);
-                    Invoke("FreezeRotation", 2f);
+                    Invoke("FreezeRotation", 3f);
                     break;
 
                 //Roll left
                 case 2:
                     thisReaperBody.AddTorque(thisReaperBody.transform.forward * -2.5f, ForceMode.VelocityChange);
-                    Invoke("FreezeRotation", 2f);
+                    Invoke("FreezeRotation", 3f);
                     break;
-            }
-            
-            if (thisReaperBody.freezeRotation = true && fb.biteObject == null && Time.time > timeToUnfreeze || fb.targetDist > 30)
-            {
-                thisReaperBody.freezeRotation = false;
-                timeToUnfreeze = Time.time + freezeCD;
-            }
-            
+            }           
+                        
             Logger.Log(Logger.Level.Debug, $"TWIST ROTATION: {thisReaperBody.rotation}");
         }
 
-        public void Lunge()
+        public void Lunge(Creature creature)
         {
             var fb = this.GetComponent<FightBehavior>();
             var ar = this.GetComponentInParent<AttackReaper>();
             var thisReaper = this.GetComponentInParent<ReaperLeviathan>();
+            var rm = this.GetComponentInParent<ReaperMeleeAttack>();
             var thisReaperBody = this.GetComponentInParent<Rigidbody>();
 
-            thisReaperBody.AddForce(mouth.transform.forward *20f, ForceMode.VelocityChange);            
+            if (creature.Tired.Value < 0.25f)
+            {
+                thisReaperBody.AddForce(rm.mouth.transform.forward * 20f, ForceMode.VelocityChange);
+            }
+            else if (creature.Tired.Value >= 0.25f)
+            {
+                thisReaperBody.AddForce(rm.mouth.transform.forward * 10f, ForceMode.VelocityChange);
+            }            
             
             Logger.Log(Logger.Level.Debug, $"LUNGING AT {thisReaperBody.velocity.magnitude} M/S");
-
 
         }
        
@@ -227,8 +260,11 @@ namespace FightingReapers
             var ar = this.GetComponentInParent<AttackReaper>();
             var thisReaper = this.GetComponentInParent<ReaperLeviathan>();
             var thisReaperBody = this.GetComponentInParent<Rigidbody>();
+            var rm = this.GetComponentInParent<ReaperMeleeAttack>();
+            var tr = rm.mouth.transform;
+            var og = rm.mouth.transform.forward;
 
-            thisReaperBody.AddForce(thisReaper.transform.forward + new Vector3 (0, 5, -5), ForceMode.VelocityChange);
+            thisReaperBody.AddForce(og + (5 * tr.up) + -(5 * tr.forward), ForceMode.VelocityChange);
             Logger.Log(Logger.Level.Debug, $"REELING!");
             if (ar.currentTarget != null)
             {
